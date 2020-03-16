@@ -3,18 +3,29 @@ package com.github.andyczy.java.excel;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.xssf.streaming.SXSSFDrawing;
 import org.apache.poi.xssf.streaming.SXSSFRow;
 import org.apache.poi.xssf.streaming.SXSSFSheet;
 import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFDataValidation;
 import org.apache.poi.xssf.usermodel.XSSFFont;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static org.apache.poi.ss.usermodel.ClientAnchor.AnchorType.DONT_MOVE_AND_RESIZE;
 import static org.apache.poi.ss.util.CellUtil.createCell;
 
 /**
@@ -35,9 +46,9 @@ public class CommonsUtils {
     /**
      * 设置数据：有样式（行、列、单元格样式）
      *
+     * @param wb
      * @param sxssfRow
      * @param dataLists
-     * @param notBorderMap
      * @param regionMap
      * @param columnMap
      * @param styles
@@ -47,10 +58,11 @@ public class CommonsUtils {
      * @param rowStyles
      * @param columnStyles
      * @param dropDownMap
+     * @throws Exception
      */
-    public static void setDataList(SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<String[]>> dataLists, HashMap notBorderMap,
+    public static void setDataList(SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<String[]>> dataLists,
                                    HashMap regionMap, HashMap columnMap, HashMap styles, HashMap paneMap,
-                                   String[] sheetName, String[] labelName, HashMap rowStyles, HashMap columnStyles, HashMap dropDownMap) throws Exception {
+                                   String[] sheetName, String[] labelName, HashMap rowStyles, HashMap columnStyles, HashMap dropDownMap, Integer defaultColumnWidth,Integer fontSize) throws Exception {
         if (dataLists == null) {
             log.debug("=== ===  === :Andyczy ExcelUtils Exception Message：Export data(type:List<List<String[]>>) cannot be empty!");
         }
@@ -60,19 +72,17 @@ public class CommonsUtils {
         int k = 0;
         for (List<String[]> listRow : dataLists) {
             SXSSFSheet sxssfSheet = wb.createSheet();
-            sxssfSheet.setDefaultColumnWidth((short) 16);
+            sxssfSheet.setDefaultColumnWidth(defaultColumnWidth);
             wb.setSheetName(k, sheetName[k]);
             CellStyle cellStyle = wb.createCellStyle();
             XSSFFont font = (XSSFFont) wb.createFont();
+            SXSSFDrawing sxssfDrawing = sxssfSheet.createDrawingPatriarch();
+
             int jRow = 0;
-            if (labelName != null) {
-                //  自定义：大标题和样式。参数说明：new String[]{"表格数据一", "表格数据二", "表格数据三"}
-                sxssfRow = sxssfSheet.createRow(0);
-                Cell cell = createCell(sxssfRow, 0, labelName[k]);
-                setMergedRegion(sxssfSheet, 0, 0, 0, listRow.get(0).length - 1);
-                setLabelStyles(wb, cell, sxssfRow);
-                jRow = 1;
-            }
+
+            //  自定义：大标题（看该方法说明）。
+            jRow = setLabelName(jRow, k, wb, labelName, sxssfRow, sxssfSheet, listRow);
+
             //  自定义：每个表格固定表头（看该方法说明）。
             Integer pane = 1;
             if (paneMap != null && paneMap.get(k + 1) != null) {
@@ -92,7 +102,7 @@ public class CommonsUtils {
                 setColumnWidth(sxssfSheet, (HashMap) columnMap.get(k + 1));
             }
             //  默认样式。
-            setStyle(cellStyle, font);
+            setStyle(cellStyle, font,fontSize);
 
             CellStyle cell_style = null;
             CellStyle row_style = null;
@@ -103,30 +113,29 @@ public class CommonsUtils {
             for (int i = 0; i < SIZE; i++) {
                 sxssfRow = sxssfSheet.createRow(jRow);
                 for (int j = 0; j < listRow.get(i).length; j++) {
-                    Cell cell = createCell(sxssfRow, j, listRow.get(i)[j]);
-                    cell.setCellStyle(cellStyle);
+                    //  样式过多会导致GC内存溢出！
                     try {
+                        Cell cell = null;
+                        if (patternIsImg(listRow.get(i)[j])) {
+                            cell = createCell(sxssfRow, j, " ");
+                            drawPicture(wb, sxssfDrawing, listRow.get(i)[j], j, jRow);
+                        } else {
+                            cell = createCell(sxssfRow, j, listRow.get(i)[j]);
+                        }
+
+                        cell.setCellStyle(cellStyle);
+
                         //  自定义：每个表格每一列的样式（看该方法说明）。
-                        //  样式过多会导致GC内存溢出！
                         if (columnStyles != null && jRow >= pane && i <= MAXSYTLE) {
-                            if (jRow == pane && j == 0) {
-                                column_style = cell.getRow().getSheet().getWorkbook().createCellStyle();
-                            }
-                            setExcelRowStyles(cell, column_style, wb, sxssfRow, (List) columnStyles.get(k + 1), j);
+                            setExcelRowStyles(cell, wb, sxssfRow, (List) columnStyles.get(k + 1), j);
                         }
                         //  自定义：每个表格每一行的样式（看该方法说明）。
                         if (rowStyles != null && i <= MAXSYTLE) {
-                            if (i == 0 && j == 0) {
-                                row_style = cell.getRow().getSheet().getWorkbook().createCellStyle();
-                            }
-                            setExcelRowStyles(cell, row_style, wb, sxssfRow, (List) rowStyles.get(k + 1), jRow);
+                            setExcelRowStyles(cell, wb, sxssfRow, (List) rowStyles.get(k + 1), jRow);
                         }
                         //  自定义：每一个单元格样式（看该方法说明）。
                         if (styles != null && i <= MAXSYTLE) {
-                            if (i == 0) {
-                                cell_style = cell.getRow().getSheet().getWorkbook().createCellStyle();
-                            }
-                            setExcelStyles(cell, cell_style, wb, sxssfRow, (List<List<Object[]>>) styles.get(k + 1), j, i);
+                            setExcelStyles(cell, wb, sxssfRow, (List<List<Object[]>>) styles.get(k + 1), j, i);
                         }
                     } catch (Exception e) {
                         log.debug("=== ===  === :Andyczy ExcelUtils Exception Message：The maximum number of cell styles was exceeded. You can define up to 4000 styles!");
@@ -145,13 +154,14 @@ public class CommonsUtils {
      * @param fontSize     字体大小。
      * @param bold         是否加粗。
      * @param center       是否左右上下居中。
-     * @param isBorder     是否加边框
+     * @param isBorder     是否忽略边框
      * @param leftBoolean  左对齐
      * @param rightBoolean 右对齐
      * @param height       行高
      */
-    public static void setExcelStyles(Cell cell, CellStyle cellStyle, SXSSFWorkbook wb, SXSSFRow sxssfRow, Integer fontSize, Boolean bold, Boolean center, Boolean isBorder, Boolean leftBoolean,
+    public static void setExcelStyles(Cell cell, SXSSFWorkbook wb, SXSSFRow sxssfRow, Integer fontSize, Boolean bold, Boolean center, Boolean isBorder, Boolean leftBoolean,
                                       Boolean rightBoolean, Integer fontColor, Integer height) {
+        CellStyle cellStyle = cell.getRow().getSheet().getWorkbook().createCellStyle();
         //保证了既可以新建一个CellStyle，又可以不丢失原来的CellStyle 的样式
         cellStyle.cloneStyleFrom(cell.getCellStyle());
         //左右居中、上下居中
@@ -169,9 +179,9 @@ public class CommonsUtils {
             cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
             cellStyle.setAlignment(HorizontalAlignment.LEFT);
         }
-        //边框
+        //是否忽略边框
         if (isBorder != null && isBorder) {
-            setBorder(cellStyle, isBorder);
+            setBorderColor(cellStyle, isBorder);
         }
         //设置单元格字体样式
         XSSFFont font = (XSSFFont) wb.createFont();
@@ -191,7 +201,7 @@ public class CommonsUtils {
     }
 
 
-    public static void setExcelRowStyles(Cell cell, CellStyle cellStyle, SXSSFWorkbook wb, SXSSFRow sxssfRow, List<Object[]> rowstyleList, int rowIndex) {
+    public static void setExcelRowStyles(Cell cell, SXSSFWorkbook wb, SXSSFRow sxssfRow, List<Object[]> rowstyleList, int rowIndex) {
         if (rowstyleList != null && rowstyleList.size() > 0) {
             Integer[] rowstyle = (Integer[]) rowstyleList.get(1);
             for (int i = 0; i < rowstyle.length; i++) {
@@ -213,10 +223,112 @@ public class CommonsUtils {
                             height = (Integer) rowstyleList.get(2)[2];
                         }
                     }
-                    setExcelStyles(cell, cellStyle, wb, sxssfRow, fontSize, Boolean.valueOf(bool[3]), Boolean.valueOf(bool[0]), Boolean.valueOf(bool[4]), Boolean.valueOf(bool[2]), Boolean.valueOf(bool[1]), fontColor, height);
+                    setExcelStyles(cell, wb, sxssfRow, fontSize, Boolean.valueOf(bool[3]), Boolean.valueOf(bool[0]), Boolean.valueOf(bool[4]), Boolean.valueOf(bool[2]), Boolean.valueOf(bool[1]), fontColor, height);
                 }
             }
         }
+    }
+
+    /**
+     * 画图片
+     * @param wb
+     * @param sxssfSheet
+     * @param pictureUrl
+     * @param rowIndex
+     */
+    /**
+     * 画图片
+     *
+     * @param wb
+     * @param sxssfDrawing
+     * @param pictureUrl
+     * @param rowIndex
+     */
+    private static void drawPicture(SXSSFWorkbook wb, SXSSFDrawing sxssfDrawing, String pictureUrl, int colIndex, int rowIndex) {
+        //rowIndex代表当前行
+        try {
+            if (pictureUrl != null) {
+                URL url = new URL(pictureUrl);
+                //打开链接
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(5 * 1000);
+                InputStream inStream = conn.getInputStream();
+                byte[] data = readInputStream(inStream);
+                //设置图片大小，
+                XSSFClientAnchor anchor = new XSSFClientAnchor(0, 0, 50, 50, colIndex, rowIndex, colIndex + 1, rowIndex + 1);
+                anchor.setAnchorType(DONT_MOVE_AND_RESIZE);
+                sxssfDrawing.createPicture(anchor, wb.addPicture(data, XSSFWorkbook.PICTURE_TYPE_JPEG));
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * 是否是图片
+     *
+     * @param str
+     * @return
+     */
+    public static Boolean patternIsImg(String str) {
+        String reg = ".+(.JPEG|.jpeg|.JPG|.jpg|.png|.gif)$";
+        Pattern pattern = Pattern.compile(reg);
+        Matcher matcher = pattern.matcher(str);
+        Boolean temp = matcher.find();
+        return temp;
+    }
+
+
+    /**
+     * @param inStream
+     * @return
+     * @throws Exception
+     */
+    private static byte[] readInputStream(InputStream inStream) throws Exception {
+        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        //创建一个Buffer字符串
+        byte[] buffer = new byte[1024];
+        //每次读取的字符串长度，如果为-1，代表全部读取完毕
+        int len = 0;
+        //使用一个输入流从buffer里把数据读取出来
+        while ((len = inStream.read(buffer)) != -1) {
+            //用输出流往buffer里写入数据，中间参数代表从哪个位置开始读，len代表读取的长度
+            outStream.write(buffer, 0, len);
+        }
+        //关闭输入流
+        inStream.close();
+        //把outStream里的数据写入内存
+        return outStream.toByteArray();
+    }
+
+
+    /**
+     * 自定义：大标题
+     *
+     * @param jRow
+     * @param k
+     * @param wb
+     * @param labelName
+     * @param sxssfRow
+     * @param sxssfSheet
+     * @param listRow
+     * @return
+     */
+    private static int setLabelName(Integer jRow, Integer k, SXSSFWorkbook wb, String[] labelName, SXSSFRow sxssfRow, SXSSFSheet sxssfSheet, List<String[]> listRow) {
+
+        if (labelName != null) {
+            //  自定义：大标题和样式。参数说明：new String[]{"表格数据一", "表格数据二", "表格数据三"}
+            sxssfRow = sxssfSheet.createRow(0);
+            Cell cell = createCell(sxssfRow, 0, labelName[k]);
+            setMergedRegion(sxssfSheet, 0, 0, 0, listRow.get(0).length - 1);
+            setLabelStyles(wb, cell, sxssfRow);
+            jRow = 1;
+        }
+        return jRow;
     }
 
     /**
@@ -225,7 +337,6 @@ public class CommonsUtils {
      * @param wb
      * @param sxssfRow
      * @param dataLists
-     * @param notBorderMap
      * @param regionMap
      * @param columnMap
      * @param paneMap
@@ -234,8 +345,8 @@ public class CommonsUtils {
      * @param dropDownMap
      * @throws Exception
      */
-    public static void setDataListNoStyle(SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<String[]>> dataLists, HashMap notBorderMap, HashMap regionMap,
-                                          HashMap columnMap, HashMap paneMap, String[] sheetName, String[] labelName, HashMap dropDownMap) throws Exception {
+    public static void setDataListNoStyle(SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<String[]>> dataLists, HashMap regionMap,
+                                          HashMap columnMap, HashMap paneMap, String[] sheetName, String[] labelName, HashMap dropDownMap,Integer defaultColumnWidth,Integer fontSize) throws Exception {
         if (dataLists == null) {
             log.debug("=== ===  === :Andyczy ExcelUtils Exception Message：Export data(type:List<List<String[]>>) cannot be empty!");
         }
@@ -245,19 +356,15 @@ public class CommonsUtils {
         int k = 0;
         for (List<String[]> listRow : dataLists) {
             SXSSFSheet sxssfSheet = wb.createSheet();
+            sxssfSheet.setDefaultColumnWidth(defaultColumnWidth);
             wb.setSheetName(k, sheetName[k]);
             CellStyle cellStyle = wb.createCellStyle();
             XSSFFont font = (XSSFFont) wb.createFont();
 
             int jRow = 0;
-            if (labelName != null) {
-                //  自定义：大标题和样式。参数说明：new String[]{"表格数据一", "表格数据二", "表格数据三"}
-                sxssfRow = sxssfSheet.createRow(0);
-                Cell cell = createCell(sxssfRow, 0, labelName[k]);
-                setMergedRegion(sxssfSheet, 0, 0, 0, listRow.get(0).length - 1);
-                setLabelStyles(wb, cell, sxssfRow);
-                jRow = 1;
-            }
+            //  自定义：大标题（看该方法说明）。
+            jRow = setLabelName(jRow, k, wb, labelName, sxssfRow, sxssfSheet, listRow);
+
             //  自定义：每个表格固定表头（看该方法说明）。
             Integer pane = 1;
             if (paneMap != null && paneMap.get(k + 1) != null) {
@@ -277,7 +384,7 @@ public class CommonsUtils {
                 setColumnWidth(sxssfSheet, (HashMap) columnMap.get(k + 1));
             }
             //  默认样式。
-            setStyle(cellStyle, font);
+            setStyle(cellStyle, font,fontSize);
 
             //  写入小标题与数据。
             Integer SIZE = listRow.size() < MAX_ROWSUM ? listRow.size() : MAX_ROWSUM;
@@ -310,29 +417,12 @@ public class CommonsUtils {
 
     /**
      * 功能描述：所有自定义单元格样式
-     * 使用的方法：是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否有边框？  —— 颜色、字体、行高？
-     * HashMap cellStyles = new HashMap();
-     * List< List<Object[]>> list = new ArrayList<>();
-     * List<Object[]> objectsList = new ArrayList<>();
-     * List<Object[]> objectsListTwo = new ArrayList<>();
-     * objectsList.add(new Boolean[]{true, false, false, false, true});      //1、样式一（必须放第一）
-     * objectsList.add(new Integer[]{10, 12});                               //1、颜色值 、字体大小、行高（必须放第二）
-     * <p>
-     * objectsListTwo.add(new Boolean[]{false, false, false, true, true});   //2、样式二（必须放第一）
-     * objectsListTwo.add(new Integer[]{10, 12,null});                       //2、颜色值 、字体大小、行高（必须放第二）
-     * <p>
-     * objectsList.add(new Integer[]{5, 1});                                 //1、第五行第一列
-     * objectsList.add(new Integer[]{6, 1});                                 //1、第六行第一列
-     * <p>
-     * objectsListTwo.add(new Integer[]{2, 1});                              //2、第二行第一列
-     * <p>
-     * cellStyles.put(1, list);                                              //第一个表格所有自定义单元格样式
      *
      * @param cell
      * @param wb
      * @param styles
      */
-    public static void setExcelStyles(Cell cell, CellStyle cellStyle, SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<Object[]>> styles, int cellIndex, int rowIndex) {
+    public static void setExcelStyles(Cell cell, SXSSFWorkbook wb, SXSSFRow sxssfRow, List<List<Object[]>> styles, int cellIndex, int rowIndex) {
         if (styles != null) {
             for (int z = 0; z < styles.size(); z++) {
                 List<Object[]> stylesList = styles.get(z);
@@ -360,7 +450,7 @@ public class CommonsUtils {
                     for (int m = 2; m < stylesList.size(); m++) {
                         Integer[] str = (Integer[]) stylesList.get(m);
                         if (cellIndex + 1 == (str[1]) && rowIndex + 1 == (str[0])) {
-                            setExcelStyles(cell, cellStyle, wb, sxssfRow, fontSize, Boolean.valueOf(bool[3]), Boolean.valueOf(bool[0]), Boolean.valueOf(bool[4]), Boolean.valueOf(bool[2]), Boolean.valueOf(bool[1]), fontColor, height);
+                            setExcelStyles(cell, wb, sxssfRow, fontSize, Boolean.valueOf(bool[3]), Boolean.valueOf(bool[0]), Boolean.valueOf(bool[4]), Boolean.valueOf(bool[2]), Boolean.valueOf(bool[1]), fontColor, height);
                         }
                     }
                 }
@@ -380,7 +470,6 @@ public class CommonsUtils {
         CellStyle cellStyle = wb.createCellStyle();
         cellStyle.setAlignment(HorizontalAlignment.CENTER);
         cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-        setBorder(cellStyle, true);
         sxssfRow.setHeight((short) (399 * 2));
         XSSFFont font = (XSSFFont) wb.createFont();
         font.setFontName("宋体");
@@ -395,13 +484,14 @@ public class CommonsUtils {
      * @param cellStyle
      * @param font
      * @return
+     * @Parm
      */
-    public static void setStyle(CellStyle cellStyle, XSSFFont font) {
+    public static void setStyle(CellStyle cellStyle, XSSFFont font,Integer fontSize) {
         cellStyle.setAlignment(HorizontalAlignment.CENTER);
         cellStyle.setVerticalAlignment(VerticalAlignment.CENTER);
         font.setFontName("宋体");
         cellStyle.setFont(font);
-        font.setFontHeight(12);
+        font.setFontHeight(fontSize);
         setBorder(cellStyle, true);
     }
 
@@ -428,10 +518,6 @@ public class CommonsUtils {
 
     /**
      * 功能描述: 锁定行（固定表头）
-     * 参数说明：
-     * HashMap setPaneMap = new HashMap();
-     * //第一个表格、第三行开始固定表头
-     * setPaneMap.put(1,3);
      *
      * @param sxssfSheet
      * @param row
@@ -444,15 +530,6 @@ public class CommonsUtils {
 
     /**
      * 功能描述: 自定义列宽
-     * 参数说明：
-     * HashMap<Integer, HashMap<Integer, Integer>> columnMap = new HashMap<>();
-     * HashMap<Integer, Integer> mapColumn = new HashMap<>();
-     * //第一列、宽度为 3[3的大小就是两个12号字体刚刚好的列宽]（注意：excel从零行开始数）
-     * mapColumn.put(0, 3);
-     * mapColumn.put(1, 20);
-     * mapColumn.put(2, 15);
-     * //第一个单元格列宽
-     * columnMap.put(1, mapColumn);
      *
      * @param sxssfSheet
      * @param map
@@ -472,14 +549,6 @@ public class CommonsUtils {
 
     /**
      * 功能描述: excel 合并单元格
-     * 参数说明：
-     * List<List<Integer[]>> regionMap = new ArrayList<>();
-     * List<Integer[]> regionList = new ArrayList<>();
-     * //代表起始行号，终止行号， 起始列号，终止列号进行合并。（注意：excel从零行开始数）
-     * regionList.add(new Integer[]{1, 1, 0, 10});
-     * regionList.add(new Integer[]{2, 3, 1, 1});
-     * //第一个表格设置。
-     * regionMap.put(1, regionList);
      *
      * @param sheet
      * @param rowColList
@@ -515,17 +584,6 @@ public class CommonsUtils {
 
     /**
      * 功能描述:下拉列表
-     * 参数说明：
-     * HashMap dropDownMap = new HashMap();
-     * List<String[]> dropList = new ArrayList<>();
-     * //必须放第一：设置下拉列表的列（excel从零行开始数）
-     * String[] sheetDropData = new String[]{"1", "2", "4"};
-     * //下拉的值放在 sheetDropData 后面。
-     * String[] sex = {"男,女"};
-     * dropList.add(sheetDropData);
-     * dropList.add(sex);
-     * //第一个表格设置。
-     * dropDownMap.put(1,dropList);
      *
      * @param sheet
      * @param dropDownListData
@@ -579,8 +637,25 @@ public class CommonsUtils {
             cellStyle.setBorderLeft(BorderStyle.THIN);
             cellStyle.setBorderTop(BorderStyle.THIN);
             cellStyle.setBorderRight(BorderStyle.THIN);
+        } else {
+            //添加白色背景，统一设置边框后但不能选择性去掉，只能通过背景覆盖达到效果。
+            cellStyle.setBottomBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setLeftBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setRightBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setTopBorderColor(IndexedColors.WHITE.getIndex());
         }
     }
+
+    public static void setBorderColor(CellStyle cellStyle, Boolean isBorder) {
+        if (isBorder) {
+            //添加白色背景，统一设置边框后但不能选择性去掉，只能通过背景覆盖达到效果。
+            cellStyle.setBottomBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setLeftBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setRightBorderColor(IndexedColors.WHITE.getIndex());
+            cellStyle.setTopBorderColor(IndexedColors.WHITE.getIndex());
+        }
+    }
+
 
     /**
      * 验证是否是日期

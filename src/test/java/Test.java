@@ -21,8 +21,10 @@ public class Test {
         String[] valueString = null;
         String[] headers = {"No", "编码", "时间", "小数点", "是否"};
         stringList.add(headers);
-        for (int i = 0; i < 1000; i++) {
-            valueString = new String[]{(i + 1) + "", Math.random() * 10 + "", getNeededDateStyle(null, null),
+
+        //可以试试1048576
+        for (int i = 0; i < 10; i++) {
+            valueString = new String[]{(i + 1) + "", "'" + Math.random() * 10 + "'", getNeededDateStyle(null, null),
                     1 + Math.random() * 10 + "", i % 2 == 0 ? "是" : "否"};
             stringList.add(valueString);
         }
@@ -38,20 +40,22 @@ public class Test {
         mapColumn.put(4, 15);
         mapColumnWidth.put(1, mapColumn);
 
-        HashMap stylesRow = new HashMap();
-        List listRow = new ArrayList();
         //第几行样式
-        listRow.add(new Boolean[]{true, false, false, false, true});
-        listRow.add(new Integer[]{0});
-        listRow.add(new Integer[]{10,14});
-        stylesRow.put(1, listRow);
+        HashMap columnStyles = new HashMap();
+        List list = new ArrayList();
+        //1、样式（是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否忽略边框？ ）
+        list.add(new Boolean[]{false, true, false, true, true});
+        list.add(new Integer[]{1, 5,10});
+        columnStyles.put(1, list);
+
 
         LocalExcelUtils noResponseExcelUtils = LocalExcelUtils.initialization();
         noResponseExcelUtils.setDataLists(dataList);
-        noResponseExcelUtils.setRowStyles(stylesRow);
+        noResponseExcelUtils.setRowStyles(columnStyles);
+        noResponseExcelUtils.setLabelName(new String[]{"Andyczy czy-nexus-commons-utils 测试表"});
         noResponseExcelUtils.setMapColumnWidth(mapColumnWidth);
         noResponseExcelUtils.setSheetName(new String[]{"Andyczy Excel中文" + Math.random()});
-        noResponseExcelUtils.setFilePath("Andyczy Excel中文" + Math.random()+".xlsx");
+        noResponseExcelUtils.setFilePath("Andyczy Excel中文" + Math.random() + ".xlsx");
 //        noResponseExcelUtils.localNoStyleNoResponse();
         noResponseExcelUtils.localNoResponse();
     }

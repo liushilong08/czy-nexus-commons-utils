@@ -14,7 +14,7 @@
         <dependency>        
             <groupId>com.github.andyczy</groupId>       
             <artifactId>java-excel-utils</artifactId>       
-            <version>4.0</version>      
+            <version>最新版本</version>      
         </dependency> 
 
   [教程说明](https://github.com/andyczy/czy-nexus-commons-utils/blob/master/README-Andyczy.md)   
@@ -22,15 +22,7 @@
    
   亲自测试：WPS、office 07、08、09、10、11、12、16 能正常打开。其他版本待测试！                                  
   注:POI SXSSFWorkbook 最高限制1048576行,16384列               
-            
-### 实现功能：
-    1、导入Excel文件，支持配置时间、小数点类型（支持单/多sheet）              
-    2、浏览器导出Excel文件、模板文件（支持单/多sheet）           
-    3、指定路径生成Excel文件（支持单/多sheet）           
-    4、自定义样式，行、列、某个单元格（字体大小、字体颜色、左右对齐、居中。支持单/多sheet）           
-    5、自定义固定表头（支持单/多sheet）            
-    6、自定义下拉列表值（支持单/多sheet）           
-    7、自定义合并单元格、自定义列宽、自定义大标题（支持单/多sheet）      
+ 
             
 ###  方式一：导出使用函数 ExcelUtils.exportForExcelsOptimize() 和  LocalExcelUtils.localNoResponse() 
         //【推荐使用该方式】【建议大数据量下不要过多设置样式】
@@ -67,9 +59,13 @@
                 
         // 自定义：对每个单元格自定义下拉列表（可为空）
         excelUtils.setDropDownMap(dropDownMap);
-        // 自定义：忽略边框(可为空：默认是有边框)
-        excelUtils.setNotBorderMap(notBorderMap);       
-            
+        
+        // 自定义：设置默认单元格列宽（可为空、默认16） 
+        excelUtils.setDefaultColumnWidth(8);
+                     
+        // 自定义：设置默认字体（可为空、默认12号） 
+        excelUtils.setFontSize(16);
+        
         // 执行导出
         excelUtils.exportForExcelsOptimize();       
  
@@ -80,7 +76,8 @@
 ### 导入使用函数： ExcelUtils.importForExcelData(......)  和  LocalExcelUtils.importForExcelData(......)
         * 获取多单元数据         
         * 自定义：多单元从第几行开始获取数据【看本文最底下参数说明】            
-        * 自定义：多单元根据那些列为空来忽略行数据【看本文最底下参数说明】         
+        * 自定义：多单元根据那些列为空来忽略行数据【看本文最底下参数说明】                 
+        * 自定义：数据格式    
 
   
 ###  ExcelUtils 对象与 LocalExcelUtils 区别。
@@ -91,61 +88,53 @@
 ###  Test 测试【新增本地测试】
 
  
-###  方式四:导出函数 ExcelUtils.exportForExcel(......)   过期注解
-        * 可提供模板下载           
-        * 自定义下拉列表：对每个单元格自定义下拉列表         
-        * 自定义列宽：对每个单元格自定义列宽         
-        * 自定义样式：对每个单元格自定义样式  
-        * 自定义样式：单元格自定义某一列或者某一行样式            
-        * 自定义单元格合并：对每个单元格合并 
-        * 自定义：每个表格的大标题          
-        * 自定义：对每个单元格固定表头    
+###  方式四:导出函数 ExcelUtils.exportForExcel(......)   过期注解（已经删除）
+  
 
 
         
 ### 数据格式
-   1、导出数据：参数 dataLists
+#### 一、导出配置                                             
+   1、参数 dataLists
    
-        @Override
-           public List<List<String[]>> exportBill(String deviceNo,String snExt,Integer parentInstId,String startDate, String endDate){
-               List<List<String[]>> dataLists = new ArrayList<>();
-               List<String[]> oneList = new ArrayList<>();  // 表格一数据
-               PageInfo<BillInfo> pagePageInfo = getBillPage(1,10000,null,snExt,deviceNo,parentInstId,startDate,endDate);
-               String[] valueString = null;
- 
-               String[] headers = {"序号","标题一","标题一","标题二","标题三","标题四","标题五","标题六"};
-               String[] headersTwo = {" ","标题一小标题（合并用）","标题一小标题（合并用）"," "," "," "," "};
-               oneList.add(headers);
-               oneList.add(headersTwo);
-                
-               for (int i = 0; i < pagePageInfo.getList().size(); i++) {
-                   valueString = new String[]{(i + 1) + "", pagePageInfo.getList().get(i).getSnExt(),
-                           getNeededDateStyle(pagePageInfo.getList().get(i).getPayTime(),"yyyy-MM-dd hh:mm:ss"),
-                           pagePageInfo.getList().get(i).getInstName(),pagePageInfo.getList().get(i).getStatisticsPrice()+"",
-                           pagePageInfo.getList().get(i).getDeviceNo(),
-                           pagePageInfo.getList().get(i).getWarning()==1?"是":"否"};
-                   oneList.add(valueString);
-               }
-               
-               List<String[]> twoList = new ArrayList<>();  // 表格二数据（和表一相同）
-               
-               
-               listArray.add(oneList);   // 多个表格导出就是多个 
-               listArray.add(twoList);   // 多个表格导出就是多个 
-               return dataLists;
-           }  
+       @Override
+       public List<List<String[]>> exportData(String deviceNo,String snExt,Integer parentInstId,String startDate, String endDate){
+           List<List<String[]>> dataLists = new ArrayList<>();
+           List<String[]> oneList = new ArrayList<>();  // 表格一数据
+           PageInfo<BillInfo> pagePageInfo = getBillPage(1,10000,null,snExt,deviceNo,parentInstId,startDate,endDate);
+           String[] valueString = null;
+
+           String[] headers = {"序号","标题一","标题一","标题二","标题三","标题四","标题五","标题六"};
+           String[] headersTwo = {" ","标题一小标题（合并用）","标题一小标题（合并用）"," "," "," "," "};
+           oneList.add(headers);
+           oneList.add(headersTwo);
+            
+           for (int i = 0; i < pagePageInfo.getList().size(); i++) {
+               valueString = new String[]{(i + 1) + "", pagePageInfo.getList().get(i).getSnExt(),
+                       getNeededDateStyle(pagePageInfo.getList().get(i).getPayTime(),"yyyy-MM-dd hh:mm:ss"),
+                       pagePageInfo.getList().get(i).getInstName(),pagePageInfo.getList().get(i).getStatisticsPrice()+"",
+                       pagePageInfo.getList().get(i).getDeviceNo(),
+                       pagePageInfo.getList().get(i).getWarning()==1?"是":"否"};
+               oneList.add(valueString);
+           }
            
-   1.1、sheetName：参数
+           List<String[]> twoList = new ArrayList<>();  // 表格二数据格式与表一相同
+           
+           
+           listArray.add(oneList);   // 多个表格导出就是多个sheet 
+           listArray.add(twoList);   // 多个表格导出就是多个sheet 
+           return dataLists;
+       }  
+           
+   2、参数：sheetName(每个sheet名称)、fileName(导出Excel文件名称)、labelName(每个sheet大标题，与sheetName格式一样)
    
        需注意的是：如果是多表格导出、sheetName也要是多个值！
-       如上面有两个数据导出： String[] sheetNameList = new String[]{"表格一数据","表格二数据"};
+       如上面有两个数据导出： 
+       String[] sheetNameList = new String[]{"表格一数据","表格二数据"};
        excelUtils.setSheetName(sheetNameList);
-       
-       
        
    2、自定义列宽：参数 mapColumnWidth
    
-       参数说明：
        HashMap<Integer, HashMap<Integer, Integer>> mapColumnWidth = new HashMap<>();
        HashMap<Integer, Integer> mapColumn = new HashMap<>();
        //第一列、宽度为 3[3的大小就是两个12号字体刚刚好的列宽]（注意：excel从零行开始数）
@@ -157,41 +146,60 @@
        
    3、自定义固定表头：参数 paneMap
    
-       参数说明：
        HashMap paneMap = new HashMap();
        //第一个表格、第一行开始固定表头
        paneMap.put(1, 1); 
        
    
    4、自定义合并单元格：参数 regionMap
-   
-        参数说明：
-        HashMap regionMap = new HashMap();                  
-        List<List<Integer[]>> region  = new ArrayList<>();
-        List<Integer[]> regionList = new ArrayList<>();                  
+
+        HashMap regionMap = new HashMap();
+        //合并单元格-代表起始行号，终止行号， 起始列号，终止列号进行合并。
+        ArrayList<Integer[]> sheet1 = new ArrayList<>();
+         
         //代表起始行号，终止行号， 起始列号，终止列号进行合并。（注意：excel从零行开始数）
-        regionList.add(new Integer[]{1, 1, 0, 10});
-        regionList.add(new Integer[]{2, 3, 1, 1});
+        sheet1.add(new Integer[]{1, 1, 0, 10});
+        sheet1.add(new Integer[]{2, 3, 1, 1});
         //第一个表格设置。
-        region.add(regionList);             
-        regionMap.put(1, region);
+        regionMap.put(1, sheet1);
                                       
-        
-   5、自定义每个表格第几行或者是第几列的样式：参数 rowStyles / columnStyles
+      
+   5、自定义下拉列表值：参数 dropDownMap
+      
+       HashMap dropDownMap = new HashMap();
+       List<String[]> dropList = new ArrayList<>();
+       //必须放第一：设置下拉列表的列（excel从零行开始数）
+       String[] sheetDropData = new String[]{"1", "2" };
+       
+       //下拉的值放在 sheetDropData 后面。
+       String[] sex = {"男,女"};                      // 第一列显示的值
+       String[] city = {"北京","山东","海南","湖南"};  // 第二列显示的值
+       dropList.add(sheetDropData);
+       dropList.add(sex);
+       dropList.add(city);
+       //第一个表格设置。
+       dropDownMap.put(1, dropList);
+       
+       
+   6、自定义每个(sheet)表格第几行或者是第几列的样式：参数 rowStyles / columnStyles (默认带边框)       
            
         参数说明：
         HashMap columnStyles = new HashMap();
         List list = new ArrayList();
-        //1、样式（是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否有边框？ ）
+        
+        //1、样式（是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否忽略边框？ ）
         list.add(new Boolean[]{true, false, false, false, true}); 
+        
         //2、第几行或者是第几列（注意：excel从零行开始数）       
         list.add(new Integer[]{1, 3});   
-        //3、颜色值（8是黑色、10红色等） 、颜色、字体、行高？（可不设置）                                        
-        list.add(new Integer[]{10,14,null});    
+        
+        //3、颜色（8是黑色、10红色等） 、字体、行高（可不设置）                                       
+        list.add(new Integer[]{10,14,null});   
+         
         //第一表格                                 
         columnStyles.put(1,list);                                                     
         
-   6、自定义每一个单元格样式：参数 styles
+   7、自定义每一个单元格样式：参数 styles (默认带边框)       
         
        参数说明：
        HashMap styles = new HashMap();
@@ -199,79 +207,67 @@
        List<Object[]> stylesObj = new ArrayList<>();
        List<Object[]> stylesObjTwo = new ArrayList<>();
        
-       //1、样式一（是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否有边框？ ）
-       stylesObj.add(new Boolean[]{true, false, false, false, true});      
-       //1、颜色值（8是黑色、10红色等） 、颜色、字体、行高？（可不设置）（必须放第二）
-       stylesObj.add(new Integer[]{10, 12});                             
+       //1、样式一（是否居中？，是否右对齐？，是否左对齐？， 是否加粗？，是否忽略边框？ ）
+       stylesObj.add(new Boolean[]{true, false, false, false, true});    
+         
+       //1、颜色（8是黑色、10红色等） 、字体、行高（可不设置）（必须放第二）
+       stylesObj.add(new Integer[]{10, 12});         
+                           
        //1、第五行、第一列（注意：excel从一开始算）
        stylesObj.add(new Integer[]{5, 1});                                  
        stylesObj.add(new Integer[]{6, 1});                                
        
-       //2、样式二（必须放第一）
-       stylesObjTwo.add(new Boolean[]{false, false, false, true, true}); 
-       //2、颜色值（8是黑色、10红色等） 、颜色、字体、行高？（可不设置）（必须放第二）  
-       stylesObjTwo.add(new Integer[]{10, 12,null});    
-       //2、第二行第一列（注意：excel从一开始算）                 
-       stylesObjTwo.add(new Integer[]{2, 1});                              
+       //样式二
+       //样式三                          
        
        stylesList.add(stylesObj);
-       stylesList.add(stylesObjTwo);
        //第一个表格所有自定义单元格样式 
        styles.put(1, stylesList);                                             
-             
-   
-   7、自定义忽略边框：参数 notBorderMap
-   
-       HashMap notBorderMap = new HashMap();
-       //忽略边框（1行、5行）、默认是数据（除大标题外）是全部加边框的。
-       notBorderMap.put(1, new Integer[]{1, 5});   
+ 
+
    
    
-   8、自定义下拉列表值：参数 dropDownMap
-      
-       参数说明：
-       HashMap dropDownMap = new HashMap();
-       List<String[]> dropList = new ArrayList<>();                  
-       //必须放第一：设置下拉列表的列（excel从零行开始数）
-       String[] sheetDropData = new String[]{"1", "2", "4"};
-       //下拉的值放在 sheetDropData 后面。        
-       String[] sex = {"男,女"};                                   
-       dropList.add(sheetDropData);
-       dropList.add(sex);
-       //第一个表格设置。
-       dropDownMap.put(1,dropList); 
    
-   9、导入配置：(第几行开始获取数据)  参数 indexMap
+#### 二、导入配置
+   1、(第几行开始获取数据)  参数 indexMap
        
        参数说明：多单元从第几行开始获取数据，默认从第二行开始获取（可为空)
        HashMap hashMapIndex = new HashMap();
        hashMapIndex.put(1,3);  //  第一个表格从第三行开始获取
        
   
-   10、导入配置：(列为空来忽略行数据)  参数 continueRowMap
+   2、导入配置：(列为空来忽略行数据)  参数 continueRowMap
        
        参数说明：多单元根据那些列为空来忽略行数据（可为空)
        HashMap mapContinueRow = new HashMap();
-       mapContinueRow.put(1,new Integer[]{1, 3});  // 第一个表格第1、3列为空就忽略这行数据
+       // 第一个表格第1、3列为空就忽略这行数据
+       mapContinueRow.put(1,new Integer[]{1, 3});  
        
-   11、导入时间格式（默认：yyyy-MM-dd）、导入数字保留的小数点（默认：#.###### 六位）
+   
+   
+   3、数据格式
+        导入时间格式（默认：yyyy-MM-dd）
+        导入数字保留的小数点（默认：#.###### 六位）
         
         ExcelUtils excelUtils = ExcelUtils.initialization();
-        excelUtils.setNumeralFormat("#.####");                  // (可为空)期望保留小数的位数（#.####）这样保留四位。
-        // (可为空) （poi 只接受无中文的日期格式、如果你想转换别的格式，这个参数要和导入表中日期格式类似，如表格中为：2019年02月14日 12时12分）。
+        // (可为空、期望保留小数的位数，如（#.####）保留四位。
+        excelUtils.setNumeralFormat("#.####");     
+                   
+        // (可为空、将转换的时间格式) 
+        // (poi 只接受无中文的日期格式、如果你想转换别的格式，这个参数要和导入表中日期格式类似，如表格中为：2019年02月14日 12时12分)。
         excelUtils.setDateFormatStr("yyyy年MM月dd日 HH时mm分"); 
-        excelUtils.setExpectDateFormatStr("yyyy-MM-dd HH-mm");  // (可为空、默认的值是：dateFormatStr 参数值) 期望转换后的日期格式。
+        
+        //(可为空、期望转换后的日期格式) 
+        excelUtils.setExpectDateFormatStr("yyyy-MM-dd HH-mm");  // (可为空、默认的值是：dateFormatStr 参数值) 。
         // 执行导入函数   ExcelUtils.importForExcelData()
    
    
    
 
-# 支持一下呗、感谢你们（排名不分先后）
-蒙蒙的雨3元（微信）、阿星100元（支付宝）、李凯5元（微信）                 
+# 感谢支持、感谢你们（排名不分先后）
+蒙蒙的雨（3元微信）、阿星支付宝（100支付宝）、李凯（5元微信）、blue（5元微信2019-03-28）、鹏飞（50支付宝2019-06-05）、啊哈（3元微信19-06-26）、84644574*(QQ 4元19-07-08)                  
+                      
 ![支持一下](https://github.com/andyczy/czy-nexus-commons-utils/blob/master/sqm.png)                        
-![支持一下](https://github.com/andyczy/czy-nexus-commons-utils/blob/master/wx.jpg)                      
-      
-       
                    
 ### License
 java-excel-utils is Open Source software released under the Apache 2.0 license.     
